@@ -6,22 +6,34 @@ from datasets import Dataset
 
 class datasetGenerator:
 
-    # Define the model type and affects the corresponding tokens
-    def setModel(self,model_type:str) -> None:
-        self.model_type = model_type
-        if(model_type==""):
-            return
-        if(model_type=="code llama instruct"):
-            self.sos = "<s>"
-            self.eos = "</s>"
-            self.sys = ""
-            self.esys = ""
-            self.inst = "[INST]"
-            self.einst="[/INST]"
-            self.assistant = ""
-            self.eassistant = ""
-            return
     
+    # Define the model type and affects the corresponding tokens
+    def __setModel(self) -> None:
+
+        if(self.model_type==""):
+            return
+        f= self.dict_formats.get(self.model_type,None)
+        if(f==None):
+            return
+        f()
+        
+       
+    def alpaca(self):
+        self.sos = "<s>"
+        self.eos = "</s>"
+        self.sys = ""
+        self.esys = ""
+        self.inst = "[INST]"
+        self.einst="[/INST]"
+        self.assistant = ""
+        self.eassistant = ""
+        return
+    
+   
+    
+    
+    
+
     #used for generic context passed to the prompt
     def setlocalContext(self,local_context) -> None:
         self.local_context = local_context
@@ -59,7 +71,13 @@ class datasetGenerator:
         self.global_context = ""
         self.local_context = ""
         
-        self.setModel(model_type)
+        self.dict_formats = {
+            "code llama instruct": self.alpaca,
+            "alpaca": self.alpaca,
+            "mistral instruct": self.alpaca,
+        }
+        self.model_type = model_type
+        self.__setModel()
 
         
     

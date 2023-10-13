@@ -5,8 +5,8 @@ with open('README.md', 'r') as f:
     l_description = f.read()
 setup(
     name='neowGen',
-    version='0.0.1',
-    description='A HuggingFace LLM pipeline generator',
+    version='0.0.2',
+    description='A HuggingFace LLM dataset pipeline generator',
     package_dir={'': 'src'},
     py_modules=['neowGen'],   
     long_description = l_description,
