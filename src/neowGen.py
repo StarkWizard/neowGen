@@ -3,7 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 import huggingface_hub
 from datasets import Dataset
-
+import csv
 class datasetGenerator:
 
     
@@ -30,8 +30,7 @@ class datasetGenerator:
         return
     
    
-    
-    
+
     
 
     #used for generic context passed to the prompt
@@ -42,13 +41,15 @@ class datasetGenerator:
         self.global_context = global_context   
     
     #Let's build the prompt by passing the tokens defined by the model
-    def generate_prompt(self,global_context="",local_context="",question="",answer="") ->str:
+    def generate_prompt(self,global_context="",local_context="",question="",answer="",verbose=False) ->str:
         full_prompt =self.sos
         full_prompt += self.sys
         full_prompt += global_context
         full_prompt += self.esys
         full_prompt += self.inst
         full_prompt += local_context + " "
+        if(verbose):
+            print(question)
         full_prompt += question
         full_prompt += self.einst
         full_prompt += self.assistant
@@ -79,10 +80,44 @@ class datasetGenerator:
         self.model_type = model_type
         self.__setModel()
 
-        
     
+    def check_csv(self,csv_file:str) -> bool:
+        try:
+            with open(csv_file, 'r', newline='') as file:
+                reader = csv.DictReader(file)
+                expected_columns = ["question", "answer"]
+
+                for row in reader:
+                # Make sure question and answer columns exist
+                    if not all(column in row for column in expected_columns):
+                        print(f"{csv_file} Error : The file should contain the following columns: {', '.join(expected_columns)}")
+                        return False
+
+                    if not all(row[column] for column in expected_columns):
+                        print(f"{csv_file} Error : incorrect line :\n{row}")
+                        return False
+
+            return True
+        except csv.Error as e:
+            print(f"{csv_file} Error reading CSV : {e}")
+            with open(csv_file, 'r', newline='') as file:
+                reader = csv.reader(file)
+                line_number = 0
+                for row in reader:
+                    line_number += 1
+                    try:
+                        # check nb of rows
+                        if len(row) != 2:
+                            raise csv.Error(f"{csv_file} Incorrect number of columns line {line_number}: {row}")
+                            return False
+
+                    except csv.Error as e:
+                        print(f"{csv_file} Line {line_number} is generating an error : {e}\nwith row : {row}") 
+                        return False
+            return False
+        
     #Generate a dict of DF from a directory
-    def generate_from_corpus(self,base_dir:str = 'corpus',verbose=True) -> None:
+    def generate_from_corpus(self,base_dir:str = 'corpus',verbose=True) -> bool:
 
         subdirs = [d for d in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, d))]
         
@@ -101,11 +136,16 @@ class datasetGenerator:
             # Read each csv file and append to df_list
             for csv_file in csv_files:
                 file_path = os.path.join(subdir_path, csv_file)
+                
+                if(not self.check_csv(file_path)):
+                    return False
+                
                 try:
                     df = pd.read_csv(file_path)
                     df_list.append(df)
                 except Exception as e:
                     print(f"Error reading {file_path}: {e}")
+                    return False
             
             # Combine all dataframes in the df_list into a single dataframe
             if df_list:
@@ -119,9 +159,10 @@ class datasetGenerator:
             print(f"Number of dataframes created: {df_count}")
             for subdir, count in csv_counts.items():
                 print(f"Number of CSV files read for '{subdir}' dataframe: {count}")
+        return True
             
     
-    def generate_dataset(self) -> None:
+    def generate_dataset(self,verbose=False) -> None:
         for key, dataframe in self.dataframes.items():
             print(f"Generating prompt for dataset '{key}':")
             
@@ -136,7 +177,7 @@ class datasetGenerator:
             #Then generate the text column 
             dataframe['text'] = dataframe.apply(lambda row: self.generate_prompt(
                 self.global_context,self.local_context,
-                question=row['question'], answer=row['answer']), axis=1)
+                question=row['question'], answer=row['answer'],verbose =verbose), axis=1)
             
             #and drop the source columns
             dataframe.drop(["question","answer"], axis=1, inplace=True)
