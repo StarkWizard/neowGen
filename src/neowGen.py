@@ -19,8 +19,8 @@ class datasetGenerator:
         
        
     def alpaca(self):
-        self.sos = "<s>"
-        self.eos = "</s>"
+        self.sos = ""
+        self.eos = ""
         self.sys = ""
         self.esys = ""
         self.inst = "[INST]"
@@ -118,49 +118,40 @@ class datasetGenerator:
         
     #Generate a dict of DF from a directory
     def generate_from_corpus(self,base_dir:str = 'corpus',verbose=True) -> bool:
-
-        subdirs = [d for d in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, d))]
-        
         self.dataframes = {}
         df_count = 0
         csv_counts = {}
-        # Loop through each subdirectory
-        for subdir in tqdm(subdirs, desc="Processing subdirectories"):
-            subdir_path = os.path.join(base_dir, subdir)
-            
-            # Get all csv files in the subdirectory
-            csv_files = [f for f in os.listdir(subdir_path) if f.endswith('.csv')]
-            
+
+        for root, dirs, files in os.walk(base_dir):
+            csv_files = [f for f in files if f.endswith('.csv')]
             df_list = []
-            
-            # Read each csv file and append to df_list
+
             for csv_file in csv_files:
-                file_path = os.path.join(subdir_path, csv_file)
-                
-                if(not self.check_csv(file_path)):
+                file_path = os.path.join(root, csv_file)
+
+                if not self.check_csv(file_path):
                     return False
-                
+
                 try:
                     df = pd.read_csv(file_path)
                     df_list.append(df)
                 except Exception as e:
                     print(f"Error reading {file_path}: {e}")
                     return False
-            
-            # Combine all dataframes in the df_list into a single dataframe
+
             if df_list:
                 combined_df = pd.concat(df_list, ignore_index=True)
-                # Store the combined dataframe with the name of the subdirectory
+                subdir = os.path.relpath(root, base_dir)  # Get relative path as subdir name
                 self.dataframes[subdir] = combined_df
                 df_count += 1
                 csv_counts[subdir] = len(df_list)
-            
-        if(verbose):
+
+        if verbose:
             print(f"Number of dataframes created: {df_count}")
             for subdir, count in csv_counts.items():
                 print(f"Number of CSV files read for '{subdir}' dataframe: {count}")
-        return True
-            
+
+        return True            
     
     def generate_dataset(self,verbose=False) -> None:
         for key, dataframe in self.dataframes.items():
