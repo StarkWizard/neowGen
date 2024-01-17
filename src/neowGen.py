@@ -117,14 +117,13 @@ class datasetGenerator:
             return False
         
     #Generate a dict of DF from a directory
-    def generate_from_corpus(self,base_dir:str = 'corpus',verbose=True) -> bool:
-        self.dataframes = {}
-        df_count = 0
-        csv_counts = {}
+    def generate_from_corpus(self, base_dir: str = 'corpus', verbose=True) -> bool:
+        self.dataframes = {'train': [], 'eval': []}
+        df_count = {'train': 0, 'eval': 0}
+        csv_counts = {'train': 0, 'eval': 0}
 
         for root, dirs, files in os.walk(base_dir):
             csv_files = [f for f in files if f.endswith('.csv')]
-            df_list = []
 
             for csv_file in csv_files:
                 file_path = os.path.join(root, csv_file)
@@ -134,24 +133,28 @@ class datasetGenerator:
 
                 try:
                     df = pd.read_csv(file_path)
-                    df_list.append(df)
+                    if 'train' in root:
+                        self.dataframes['train'].append(df)
+                        csv_counts['train'] += 1
+                    elif 'eval' in root:
+                        self.dataframes['eval'].append(df)
+                        csv_counts['eval'] += 1
                 except Exception as e:
                     print(f"Error reading {file_path}: {e}")
                     return False
 
-            if df_list:
-                combined_df = pd.concat(df_list, ignore_index=True)
-                subdir = os.path.relpath(root, base_dir)  # Get relative path as subdir name
-                self.dataframes[subdir] = combined_df
-                df_count += 1
-                csv_counts[subdir] = len(df_list)
+        # Concatenate DataFrames for 'train' and 'eval'
+        for key in self.dataframes:
+            if self.dataframes[key]:
+                self.dataframes[key] = pd.concat(self.dataframes[key], ignore_index=True)
+                df_count[key] = 1
 
         if verbose:
-            print(f"Number of dataframes created: {df_count}")
-            for subdir, count in csv_counts.items():
-                print(f"Number of CSV files read for '{subdir}' dataframe: {count}")
+            print(f"Number of dataframes created: {sum(df_count.values())}")
+            for key, count in csv_counts.items():
+                print(f"Number of CSV files read for '{key}' dataframe: {count}")
 
-        return True            
+        return True     
     
     def generate_dataset(self,verbose=False) -> None:
         for key, dataframe in self.dataframes.items():
@@ -184,25 +187,27 @@ class datasetGenerator:
             dataset.save_to_disk(directory + "ds_" + key)
             
     # Push the dataset to the Hugging face hub
-    def push_to_hub(self,name ="")  -> None:
+    def push_to_hub(self,name ="",token="")  -> None:
+        print("here")
         for key, dataframe in self.dataframes.items():
-            
+            print("key:", key)
             try:
                 dataset= Dataset.from_pandas(dataframe)
+                
             except Exception as e:
                 print(f"An unexpected error occurred: {e}")
                 return
                 
             try:
-                dataset.push_to_hub(name,split=key)
+                dataset.push_to_hub(name,token=token,split=key)
             except ConnectionError:
-                print("Error: Failed to connect. Please check your internet connection.")
+                print("Error>: Failed to connect. Please check your internet connection.")
                 return
             except PermissionError:
                 print("Error: You don't have the necessary permissions to push to this repository.")
                 return
             except ValueError:
-                print("Error: Invalid arguments provided.")
+                print("Error>: Invalid arguments provided.")
                 return
             except Exception as e:
                 print(f"An unexpected error occurred: {e}")
